@@ -120,7 +120,6 @@ deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
-
 apiKey: "AIzaSyBUkrpmXoPqtmEtxUXBSqTpGW56bCk5LHo",
 authDomain: "yappatr0n.firebaseapp.com",
 projectId: "yappatr0n",
@@ -128,7 +127,6 @@ storageBucket: "yappatr0n.firebasestorage.app",
 messagingSenderId: "1023173924999",
 appId: "1:1023173924999:web:3c7cb4444b4433df730022",
 measurementId: "G-KGBX045412"
-
 };
 
 const app = initializeApp(firebaseConfig);
@@ -146,12 +144,21 @@ const chatCard = document.getElementById("chatCard");
 const chatSelect = document.getElementById("chatSelect");
 const messagesDiv = document.getElementById("messages");
 
+const emailInput = document.getElementById("email");
+const passwordInput = document.getElementById("password");
+
+const loginBtn = document.getElementById("loginBtn");
+const signupBtn = document.getElementById("signupBtn");
+
+const messageInput = document.getElementById("messageInput");
+const sendBtn = document.getElementById("sendBtn");
+
 /* SIGNUP */
 
 signupBtn.onclick = async () => {
 
 const email = emailInput.value;
-const pass = password.value;
+const pass = passwordInput.value;
 
 await createUserWithEmailAndPassword(auth,email,pass);
 
@@ -167,11 +174,11 @@ banned:false
 
 loginBtn.onclick = async () => {
 
-await signInWithEmailAndPassword(auth,email.value,password.value);
+await signInWithEmailAndPassword(auth,emailInput.value,passwordInput.value);
 
 };
 
-/* AUTH */
+/* AUTH STATE */
 
 onAuthStateChanged(auth, async user => {
 
@@ -180,12 +187,12 @@ if(!user) return;
 loginCard.style.display="none";
 chatCard.style.display="block";
 
-const userRef = doc(db,"users",user.email);
-const snap = await getDoc(userRef);
+const ref = doc(db,"users",user.email);
+const snap = await getDoc(ref);
 
 if(!snap.exists()){
 
-await setDoc(userRef,{
+await setDoc(ref,{
 role:"user",
 muted:false,
 banned:false
@@ -200,7 +207,7 @@ loadMessages();
 
 });
 
-/* CREATE GLOBAL CHAT IF MISSING */
+/* GLOBAL CHAT */
 
 async function ensureGlobalChat(){
 
@@ -312,7 +319,7 @@ return;
 }
 
 if(text.startsWith("/")){
-handleCommand(text);
+await handleCommand(text);
 messageInput.value="";
 return;
 }
@@ -331,54 +338,67 @@ messageInput.value="";
 
 async function handleCommand(text){
 
-const parts = text.trim().split(" ");
+const parts = text.split(" ");
 const cmd = parts[0].toLowerCase();
-const target = parts[1];
 
-const me = (await getDoc(doc(db,"users",auth.currentUser.email))).data();
+const meSnap = await getDoc(doc(db,"users",auth.currentUser.email));
+const me = meSnap.data();
 
 if(me.role !== "admin" && auth.currentUser.email !== OWNER){
 alert("Staff only command");
 return;
 }
 
-if(target === OWNER){
-alert("Cannot target owner");
-return;
-}
-
 /* MUTE */
 
 if(cmd==="/mute"){
+
+const target=parts[1];
+
+if(target===OWNER) return alert("Cannot target owner");
+
 await updateDoc(doc(db,"users",target),{muted:true});
+
 }
 
 /* UNMUTE */
 
 if(cmd==="/unmute"){
+
+const target=parts[1];
+
+if(target===OWNER) return alert("Cannot target owner");
+
 await updateDoc(doc(db,"users",target),{muted:false});
+
 }
 
 /* BAN */
 
 if(cmd==="/ban"){
+
+const target=parts[1];
+
+if(target===OWNER) return alert("Cannot target owner");
+
 await updateDoc(doc(db,"users",target),{banned:true});
+
 }
 
 /* DELETE MESSAGE */
 
-if(cmd === "/delete" && parts[1] === "message"){
+if(cmd==="/delete" && parts[1]==="message"){
 
 const textToDelete = parts.slice(2).join(" ").toLowerCase().trim();
 
 const snap = await getDocs(collection(db,"chats",currentChat,"messages"));
 
-for(const docSnap of snap.docs){
+for(const m of snap.docs){
 
-const data = docSnap.data();
+const data=m.data();
 
 if(data.text && data.text.toLowerCase().includes(textToDelete)){
-await deleteDoc(docSnap.ref);
+await deleteDoc(m.ref);
 }
 
 }
@@ -387,9 +407,9 @@ await deleteDoc(docSnap.ref);
 
 /* DELETE CHAT */
 
-if(cmd === "/delete" && parts[1] === "chat"){
+if(cmd==="/delete" && parts[1]==="chat"){
 
-const chatName = parts[2];
+const chatName=parts[2];
 
 const snap = await getDocs(collection(db,"chats",chatName,"messages"));
 
@@ -401,11 +421,12 @@ await deleteDoc(doc(db,"chats",chatName));
 
 }
 
-/* STAFF CHAT */
+/* STAFFCHAT */
 
 if(cmd==="/staffchat"){
 
 await setDoc(doc(db,"chats","staff"),{
+createdBy:"system",
 staffOnly:true
 });
 
@@ -419,6 +440,8 @@ if(auth.currentUser.email!==OWNER){
 alert("Only owner can promote");
 return;
 }
+
+const target=parts[1];
 
 await updateDoc(doc(db,"users",target),{
 role:"admin"
